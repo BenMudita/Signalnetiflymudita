@@ -61,13 +61,23 @@ export async function POST(
     };
   });
 
-  const classifications = await withAction(
-    `Classify departments: ${org.name}`,
-    () => classifyPeople(org.name, inputs),
-  );
+  let classifications;
+  try {
+    classifications = await withAction(
+      `Classify departments: ${org.name}`,
+      () => classifyPeople(org.name, inputs),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[classify-departments] LLM classification failed:", err);
+    return Response.json(
+      { error: `Classification failed: ${message}` },
+      { status: 500 },
+    );
+  }
 
   for (const c of classifications) {
-    await supabase
+    const { error: updErr } = await supabase
       .from("people")
       .update({
         department: c.department,
@@ -75,6 +85,12 @@ export async function POST(
         role_summary: c.role_summary,
       })
       .eq("id", c.id);
+    if (updErr) {
+      console.error(
+        `[classify-departments] update failed for ${c.id}:`,
+        updErr,
+      );
+    }
   }
 
   return Response.json({ classified: classifications.length });

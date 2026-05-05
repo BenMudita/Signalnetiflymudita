@@ -1,5 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject, jsonSchema } from "ai";
+import { MODELS } from "@/lib/ai/models";
 import { createClient } from "@/lib/supabase/server";
 import { withTimeout } from "@/lib/utils/timeout";
 import { structuralDiff } from "./diff";
@@ -103,7 +104,7 @@ async function executeStep(
         apiKey,
         projectId,
         model: {
-          modelName: step.model ?? "anthropic/claude-sonnet-4-6",
+          modelName: step.model ?? `anthropic/${MODELS.BROWSER}`,
           apiKey: anthropicKey,
         },
         disablePino: true,
@@ -172,7 +173,7 @@ async function executeStep(
         return null;
       }
       const { object } = await generateObject({
-        model: anthropic(step.model ?? "claude-haiku-4-5-20251001"),
+        model: anthropic(step.model ?? MODELS.LIGHT),
         schema: jsonSchema(step.schema),
         prompt: `${step.prompt}\n\n---\n\n${source.slice(0, 30_000)}`,
       });

@@ -58,6 +58,7 @@ interface DraftForReview {
   person_id: string;
   person_name: string;
   person_title: string | null;
+  person_bio_summary: string | null;
   person_work_email: string | null;
   person_work_email_confidence: number | null;
   person_personal_email: string | null;
@@ -157,7 +158,7 @@ function ReviewPageInner() {
           id, to_email, subject, body_html, body_text, ai_reasoning,
           review_status, status, sequence_step_id, enrollment_id, person_id,
           people(
-            name, title, organization_id, enrichment_data,
+            name, title, bio_summary, organization_id, enrichment_data,
             enrichment_status, last_enriched_at,
             work_email, work_email_confidence,
             personal_email, linkedin_url, twitter_url,
@@ -188,6 +189,7 @@ function ReviewPageInner() {
         const person = d.people as unknown as {
           name: string;
           title: string | null;
+          bio_summary: string | null;
           organization_id: string | null;
           enrichment_data: EnrichmentData;
           enrichment_status: "pending" | "in_progress" | "enriched" | "failed";
@@ -230,6 +232,7 @@ function ReviewPageInner() {
           person_id: d.person_id,
           person_name: person?.name ?? "Unknown",
           person_title: person?.title ?? null,
+          person_bio_summary: person?.bio_summary ?? null,
           person_work_email: person?.work_email ?? null,
           person_work_email_confidence: person?.work_email_confidence ?? null,
           person_personal_email: person?.personal_email ?? null,
@@ -775,6 +778,10 @@ function ReviewPageInner() {
     organization_id: null,
     name: currentContact.person_name,
     title: currentContact.person_title,
+    department: null,
+    seniority: null,
+    role_summary: null,
+    bio_summary: currentContact.person_bio_summary,
     work_email: currentContact.person_work_email ?? currentContact.to_email,
     personal_email: currentContact.person_personal_email,
     work_email_verified_at: null,

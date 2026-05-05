@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { Linkedin, Mail } from "lucide-react";
+import { Linkedin, Loader2, Mail, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -66,16 +67,60 @@ export interface PersonNodeData {
   work_email: string | null;
   outreach_status: string | null;
   role_summary: string | null;
+  enrichment_status: string | null;
+  onRemove?: (personId: string) => void | Promise<void>;
+}
+
+function EnrichmentLabel({ status }: { status: string | null }) {
+  if (status === "enriched") {
+    return (
+      <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+        Enriched
+      </span>
+    );
+  }
+  if (status === "in_progress") {
+    return (
+      <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400">
+        Enriching…
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="text-[10px] font-medium text-red-700 dark:text-red-400">
+        Enrichment failed
+      </span>
+    );
+  }
+  return (
+    <span className="text-muted-foreground text-[10px]">Not enriched</span>
+  );
 }
 
 export function PersonNode({ data, selected }: NodeProps<PersonNodeData>) {
   const status = data.outreach_status ?? "not_contacted";
   const style = STATUS_STYLES[status] ?? STATUS_STYLES.not_contacted;
 
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  async function handleRemove(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!data.onRemove || removing) return;
+    setRemoving(true);
+    try {
+      await data.onRemove(data.personId);
+    } finally {
+      setRemoving(false);
+      setConfirming(false);
+    }
+  }
+
   return (
     <div
       className={cn(
-        "border-border bg-card w-[240px] cursor-pointer rounded-md border p-2.5 shadow-sm ring-1 transition-all hover:shadow-md",
+        "group border-border bg-card relative w-[240px] cursor-pointer rounded-md border p-2.5 shadow-sm ring-1 transition-all hover:shadow-md",
         style.ring,
         selected && "ring-2 ring-primary",
       )}
@@ -89,6 +134,9 @@ export function PersonNode({ data, selected }: NodeProps<PersonNodeData>) {
               {data.title}
             </div>
           )}
+          <div className="mt-1">
+            <EnrichmentLabel status={data.enrichment_status} />
+          </div>
         </div>
         <span
           className={cn(
@@ -101,7 +149,7 @@ export function PersonNode({ data, selected }: NodeProps<PersonNodeData>) {
       </div>
 
       {data.role_summary && (
-        <div className="text-muted-foreground mt-1.5 line-clamp-2 text-[11px]">
+        <div className="text-muted-foreground mt-1.5 line-clamp-1 text-[11px]">
           {data.role_summary}
         </div>
       )}
@@ -129,7 +177,60 @@ export function PersonNode({ data, selected }: NodeProps<PersonNodeData>) {
             <Mail className="h-3.5 w-3.5" />
           </a>
         )}
+        {data.onRemove && (
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirming(true);
+            }}
+            className="text-muted-foreground hover:text-destructive ml-auto opacity-0 transition-opacity group-hover:opacity-100"
+            aria-label="Remove from company"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
+
+      {confirming && data.onRemove && (
+        <div
+          className="bg-card/95 absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md p-2 text-center"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-xs font-medium">Remove from company?</p>
+          <p className="text-muted-foreground text-[10px] leading-tight">
+            Person record stays in your knowledge base.
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirming(false);
+              }}
+              disabled={removing}
+              className="border-border hover:bg-muted rounded border px-2 py-0.5 text-[11px]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={removing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px]"
+            >
+              {removing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              {removing ? "Removing…" : "Remove"}
+            </button>
+          </div>
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );

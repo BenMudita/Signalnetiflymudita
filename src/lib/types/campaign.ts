@@ -174,6 +174,7 @@ export interface Person {
   department: string | null;
   seniority: Seniority | null;
   role_summary: string | null;
+  bio_summary: string | null;
   enrichment_data: EnrichmentData;
   enrichment_status: "pending" | "in_progress" | "enriched" | "failed";
   last_enriched_at: string | null;
@@ -244,6 +245,10 @@ export interface CampaignContact {
   organization_id: string | null;
   name: string;
   title: string | null;
+  department: string | null;
+  seniority: Seniority | null;
+  role_summary: string | null;
+  bio_summary: string | null;
   work_email: string | null;
   personal_email: string | null;
   work_email_verified_at: string | null;

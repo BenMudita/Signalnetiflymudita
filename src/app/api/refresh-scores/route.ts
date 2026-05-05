@@ -2,6 +2,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
 
+import { MODELS } from "@/lib/ai/models";
 import { getProfileForPrompt } from "@/lib/profile";
 import {
   estimateClaudeCostFromUsage,
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
       : "No user profile available.";
 
     const result = await generateObject({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic(MODELS.STRUCTURED),
       schema: z.object({
         scores: z.array(
           z.object({

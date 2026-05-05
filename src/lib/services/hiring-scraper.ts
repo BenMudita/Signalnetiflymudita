@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import { mergeEnrichmentData } from "@/lib/services/knowledge-base";
 import { withTimeout } from "@/lib/utils/timeout";
 
@@ -48,7 +49,7 @@ export async function scrapeHiringData(
     env: "BROWSERBASE",
     apiKey,
     projectId,
-    model: { modelName: "anthropic/claude-sonnet-4-6", apiKey: anthropicKey },
+    model: { modelName: `anthropic/${MODELS.BROWSER}`, apiKey: anthropicKey },
     disablePino: true,
   });
 

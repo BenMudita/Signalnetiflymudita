@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import {
   estimateClaudeCostFromUsage,
   trackUsage,
@@ -44,9 +45,8 @@ const ResponseSchema = z.object({
       seniority: z.enum(SENIORITIES),
       role_summary: z
         .string()
-        .max(140)
         .describe(
-          "One-line plain-English description of what this person does",
+          "One-line plain-English description of what this person does, ideally under 140 characters",
         ),
     }),
   ),
@@ -80,7 +80,7 @@ export async function classifyPeople(
     );
 
     const { object, usage } = await generateObject({
-      model: anthropic("claude-sonnet-4-6"),
+      model: anthropic(MODELS.STRUCTURED),
       schema: ResponseSchema,
       prompt: `You are categorising employees of ${stringify(companyName)} into departments and seniority levels for an org chart.
 

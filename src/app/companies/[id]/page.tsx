@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
+import { AddPersonDialog } from "@/components/company/add-person-dialog";
 import { CampaignSelector } from "@/components/company/campaign-selector";
 import { ClassifyButton } from "@/components/company/classify-button";
 import { FindMoreButton } from "@/components/company/find-more-button";
@@ -11,6 +12,11 @@ import { OrgChart, type OrgChartPerson } from "@/components/company/org-chart";
 import { PersonDrawer } from "@/components/company/person-drawer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
+import type {
+  CampaignContact,
+  EnrichmentData,
+  Seniority,
+} from "@/lib/types/campaign";
 
 interface OrgRow {
   id: string;
@@ -25,10 +31,20 @@ interface PersonRow {
   name: string;
   title: string | null;
   department: string | null;
-  seniority: string | null;
+  seniority: Seniority | null;
   role_summary: string | null;
+  bio_summary: string | null;
   linkedin_url: string | null;
+  twitter_url: string | null;
   work_email: string | null;
+  personal_email: string | null;
+  work_email_verified_at: string | null;
+  personal_email_verified_at: string | null;
+  enrichment_status: CampaignContact["enrichment_status"];
+  enrichment_data: EnrichmentData;
+  source: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface CampaignRow {
@@ -68,7 +84,7 @@ export default function CompanyPage() {
       supabase
         .from("people")
         .select(
-          "id, name, title, department, seniority, role_summary, linkedin_url, work_email",
+          "id, name, title, department, seniority, role_summary, bio_summary, linkedin_url, twitter_url, work_email, personal_email, work_email_verified_at, personal_email_verified_at, enrichment_status, enrichment_data, source, created_at, updated_at",
         )
         .eq("organization_id", companyId)
         .order("name", { ascending: true }),
@@ -146,6 +162,7 @@ export default function CompanyPage() {
       linkedin_url: p.linkedin_url,
       work_email: p.work_email,
       outreach_status: statusByPerson.get(p.id) ?? null,
+      enrichment_status: p.enrichment_status,
     }));
   }, [people, statusByPerson]);
 
@@ -154,10 +171,59 @@ export default function CompanyPage() {
     [people],
   );
 
-  const selectedPerson = useMemo(
-    () => chartPeople.find((p) => p.id === selectedPersonId) ?? null,
-    [chartPeople, selectedPersonId],
+  const enrichContact = useCallback(
+    async (personId: string) => {
+      try {
+        await fetch("/api/enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId: personId }),
+        });
+        await fetchCore();
+      } catch (err) {
+        console.error("[enrich] Failed:", err);
+      }
+    },
+    [fetchCore],
   );
+
+  const selectedContact: CampaignContact | null = useMemo(() => {
+    if (!selectedPersonId) return null;
+    const p = people.find((row) => row.id === selectedPersonId);
+    if (!p) return null;
+    return {
+      id: p.id,
+      person_id: p.id,
+      campaign_id: campaignId ?? "",
+      organization_id: companyId,
+      name: p.name,
+      title: p.title,
+      department: p.department,
+      seniority: p.seniority,
+      role_summary: p.role_summary,
+      bio_summary: p.bio_summary,
+      work_email: p.work_email,
+      personal_email: p.personal_email,
+      work_email_verified_at: p.work_email_verified_at,
+      personal_email_verified_at: p.personal_email_verified_at,
+      linkedin_url: p.linkedin_url,
+      twitter_url: p.twitter_url,
+      enrichment_status: p.enrichment_status,
+      enrichment_data: p.enrichment_data,
+      outreach_status:
+        (statusByPerson.get(p.id) as CampaignContact["outreach_status"]) ??
+        "not_contacted",
+      priority_score: null,
+      score_reason: null,
+      readiness_tag: null,
+      source: p.source,
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+      company: org
+        ? { name: org.name, domain: org.domain, industry: org.industry }
+        : null,
+    };
+  }, [selectedPersonId, people, statusByPerson, campaignId, companyId, org]);
 
   if (loading) {
     return (
@@ -209,6 +275,11 @@ export default function CompanyPage() {
           onChange={setCampaignId}
         />
         <div className="flex items-center gap-2">
+          <AddPersonDialog
+            organizationId={companyId}
+            campaignId={campaignId ?? undefined}
+            onAdded={fetchCore}
+          />
           <ClassifyButton
             companyId={companyId}
             uncategorizedCount={uncategorizedCount}
@@ -221,11 +292,62 @@ export default function CompanyPage() {
       <OrgChart
         people={chartPeople}
         onPersonClick={(id) => setSelectedPersonId(id)}
+        onPersonReclassify={async (personId, next) => {
+          try {
+            const res = await fetch(`/api/people/${personId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                department: next.department,
+                seniority: next.seniority,
+              }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `HTTP ${res.status}`);
+            }
+            await fetchCore();
+          } catch (err) {
+            console.error("[reclassify] Failed:", err);
+            await fetchCore();
+          }
+        }}
+        onPersonRemove={async (personId) => {
+          try {
+            const res = await fetch(`/api/people/${personId}/from-company`, {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `HTTP ${res.status}`);
+            }
+            await fetchCore();
+          } catch (err) {
+            console.error("[remove-from-company] Failed:", err);
+            await fetchCore();
+          }
+        }}
       />
 
       <PersonDrawer
-        person={selectedPerson}
+        contact={selectedContact}
         onClose={() => setSelectedPersonId(null)}
+        onEnrich={enrichContact}
+        onRemove={async (personId) => {
+          try {
+            const res = await fetch(`/api/people/${personId}/from-company`, {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `HTTP ${res.status}`);
+            }
+            await fetchCore();
+          } catch (err) {
+            console.error("[remove-from-company] Failed:", err);
+            await fetchCore();
+          }
+        }}
       />
     </div>
   );

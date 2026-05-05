@@ -1,3 +1,4 @@
+import { getDomain } from "tldts";
 import { createClient } from "@/lib/supabase/server";
 import type { Organization, Person } from "@/lib/types/campaign";
 
@@ -10,14 +11,19 @@ function stripDiacritics(str: string): string {
 }
 
 /**
- * Normalize a domain for dedup: strip protocol, www prefix, trailing slash.
+ * Normalize a domain to its registrable apex for dedup. Strips protocol,
+ * subdomains, www, paths, and lowercases. `docs.mintlify.com` → `mintlify.com`.
+ * `allowPrivateDomains: true` enables PSL's private section, so platform-style
+ * domains like `foo.github.io` and `user.vercel.app` are kept intact instead
+ * of collapsing to `github.io` / `vercel.app`.
  */
 export function normalizeDomain(raw: string): string {
-  return raw
+  const cleaned = raw
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
     .replace(/\/+$/, "")
     .toLowerCase();
+  return getDomain(cleaned, { allowPrivateDomains: true }) ?? cleaned;
 }
 
 /**

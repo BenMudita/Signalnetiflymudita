@@ -9,6 +9,7 @@ import { XService } from "@/lib/services/x-service";
 import { WebExtractionService } from "@/lib/services/web-extraction-service";
 import { GooglePlacesService } from "@/lib/services/google-places-service";
 import {
+  findOrCreateOrganization,
   findOrCreatePerson,
   linkPersonToCampaign,
   mergeEnrichmentData,
@@ -21,10 +22,11 @@ import {
   type CandidateContact,
 } from "@/lib/services/contact-filter";
 import { recordVerifiedEmail } from "@/lib/services/email-pattern";
+import { summarizePerson } from "@/lib/services/enrichment-summarizer";
 
 export const searchPeople = tool({
   description:
-    "Search for people at companies using Exa semantic search with LinkedIn-focused queries. Stores results in the shared knowledge base. When campaignId is provided, links results to the campaign and deduplicates against existing campaign contacts.",
+    "Search for people at companies using Exa semantic search with LinkedIn-focused queries. Stores results in the shared knowledge base. When campaignId is provided, links results to the campaign and deduplicates against existing campaign contacts. When the search targets a known company, ALWAYS pass companyName (and companyDomain if known) so results are linked to that organization for the org chart and per-company views.",
   inputSchema: z.object({
     campaignId: z
       .string()
@@ -36,6 +38,20 @@ export const searchPeople = tool({
       .uuid()
       .optional()
       .describe("Campaign-organization link ID to associate contacts with"),
+    companyName: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Name of the company being searched (e.g. 'Browserbase'). When provided, every stored person is linked to this organization in the knowledge base. Required when searching at a specific company and companyId is not available.",
+      ),
+    companyDomain: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Company domain like 'browserbase.com'. Used with companyName for accurate organization dedup.",
+      ),
     query: z
       .string()
       .min(1)
@@ -60,7 +76,11 @@ export const searchPeople = tool({
       includeText: true,
     });
 
-    // Resolve organization_id if companyId (campaign_organizations link) is provided
+    // Resolve organization_id. Order of preference:
+    //   1. companyId (campaign_organizations link) -- already-scoped campaign work.
+    //   2. companyName (+optional companyDomain) -- ad-hoc agent searches like
+    //      "find people at Browserbase". findOrCreateOrganization dedups by
+    //      domain or fuzzy name match so we don't pile up duplicate orgs.
     let organizationId: string | null = null;
     if (input.companyId) {
       const { data: link } = await supabase
@@ -69,6 +89,13 @@ export const searchPeople = tool({
         .eq("id", input.companyId)
         .single();
       organizationId = link?.organization_id || null;
+    } else if (input.companyName) {
+      const org = await findOrCreateOrganization({
+        name: input.companyName,
+        domain: input.companyDomain ?? null,
+        source: "searchPeople",
+      });
+      organizationId = org.id;
     }
 
     // Fetch existing linkedin_urls already linked to this campaign for dedup
@@ -86,14 +113,17 @@ export const searchPeople = tool({
       }
     }
 
-    const storedContacts: Array<{
-      id: string;
+    // Stage 1: parse + dedup Exa results into candidate list (no DB writes yet).
+    interface SearchCandidate {
       name: string;
       title: string | null;
       linkedin_url: string | null;
-    }> = [];
-    let duplicatesSkipped = 0;
+      rawTitle: string;
+      text: string | null;
+    }
+    const candidates: SearchCandidate[] = [];
     const seenUrls = new Set<string>();
+    let duplicatesSkipped = 0;
 
     for (const result of searchResponse.results) {
       const { name, title } = parseLinkedInTitle(result.title);
@@ -104,7 +134,6 @@ export const searchPeople = tool({
         ? normalizeLinkedInUrl(rawLinkedinUrl)
         : null;
 
-      // Dedup
       if (linkedinUrl) {
         if (existingUrls.has(linkedinUrl) || seenUrls.has(linkedinUrl)) {
           duplicatesSkipped++;
@@ -113,23 +142,46 @@ export const searchPeople = tool({
         seenUrls.add(linkedinUrl);
       }
 
-      const person = await findOrCreatePerson({
+      candidates.push({
         name,
         title,
         linkedin_url: linkedinUrl,
+        rawTitle: result.title,
+        text: result.text ?? null,
+      });
+    }
+
+    // No company-membership verification yet: filterContactsByCompany's
+    // pre-filter required the company name in each candidate's headline,
+    // which over-rejected legit employees whose LinkedIn page title doesn't
+    // include their employer (common at small startups). Phase 2 will replace
+    // this with a confidence score + enrich-on-low pattern.
+
+    // Stage 2: store every deduped candidate.
+    const storedContacts: Array<{
+      id: string;
+      name: string;
+      title: string | null;
+      linkedin_url: string | null;
+    }> = [];
+
+    for (const c of candidates) {
+      const person = await findOrCreatePerson({
+        name: c.name,
+        title: c.title,
+        linkedin_url: c.linkedin_url,
         organization_id: organizationId,
         source: "exa",
       });
 
-      // Store initial search data if person is new (no enrichment yet)
       if (person.enrichment_status === "pending") {
         await supabase
           .from("people")
           .update({
             enrichment_data: {
               searchQuery: input.query,
-              rawTitle: result.title,
-              text: result.text?.slice(0, 1000),
+              rawTitle: c.rawTitle,
+              text: c.text?.slice(0, 1000),
             },
           })
           .eq("id", person.id);
@@ -154,9 +206,11 @@ export const searchPeople = tool({
         title: c.title,
         linkedinUrl: c.linkedin_url,
       })),
+      organizationId,
       totalFound: searchResponse.resultCount,
       newContacts: storedContacts.length,
       duplicatesSkipped,
+      rejectedAsWrongCompany: 0,
       query: input.query,
     };
   },
@@ -393,6 +447,53 @@ async function enrichContactById(
     enrichmentData,
     status as "enriched" | "failed",
   );
+
+  // ── Bio summary ──────────────────────────────────────────────────────
+  // Generate a short blurb from whatever we just collected so the user
+  // gets a quick read at the top of the person drawer. Best-effort: a
+  // failure here doesn't fail enrichment.
+  if (status === "enriched") {
+    try {
+      const linkedin = enrichmentData.linkedin as
+        | {
+            profileInfo?: { headline?: string } | null;
+            posts?: Array<{ text: string }>;
+          }
+        | undefined;
+      const twitter = enrichmentData.twitter as
+        | {
+            user?: { description?: string };
+            tweets?: Array<{ text: string }>;
+          }
+        | undefined;
+      const bio = await summarizePerson({
+        name: contactName,
+        title: person?.title ?? null,
+        companyName,
+        linkedinHeadline: linkedin?.profileInfo?.headline ?? null,
+        twitterBio: twitter?.user?.description ?? null,
+        linkedinPosts: linkedin?.posts,
+        tweets: twitter?.tweets,
+        news: enrichmentData.news as
+          | Array<{ title: string; url: string; text: string | null }>
+          | undefined,
+        articles: enrichmentData.articles as
+          | Array<{ title: string; url: string; text: string | null }>
+          | undefined,
+        background: enrichmentData.background as
+          | Array<{ title: string; url: string; text: string | null }>
+          | undefined,
+      });
+      if (bio) {
+        await supabase
+          .from("people")
+          .update({ bio_summary: bio })
+          .eq("id", personId);
+      }
+    } catch (err) {
+      console.error("[enrichContact] bio summary failed:", err);
+    }
+  }
 
   // ── Email discovery ──────────────────────────────────────────────────
   // If the contact has no email after enrichment, try to find one.
