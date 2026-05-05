@@ -21,7 +21,24 @@ export async function POST(
   if (!ctx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { supabase } = ctx;
+  const { supabase, user } = ctx;
+
+  // Ownership: target organization must be reachable from one of the
+  // user's campaigns. Mirrors the /api/people/[id]/to-company pattern --
+  // people RLS is permissive on purpose, so ownership is enforced here.
+  const { data: orgOwnership } = await supabase
+    .from("campaign_organizations")
+    .select("campaign:campaigns!inner(user_id)")
+    .eq("organization_id", companyId)
+    .limit(1)
+    .maybeSingle();
+
+  const orgOwnerId =
+    (orgOwnership?.campaign as unknown as { user_id?: string } | null)
+      ?.user_id ?? null;
+  if (!orgOwnerId || orgOwnerId !== user.id) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data: org } = await supabase
     .from("organizations")

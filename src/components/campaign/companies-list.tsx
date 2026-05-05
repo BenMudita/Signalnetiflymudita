@@ -90,7 +90,20 @@ export function CompaniesList({
     Set<string>
   >(new Set());
   const [page, setPage] = useState(0);
-  const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
+  // Companies in this set use the flat-table view; everyone else defaults
+  // to chart. Keeping this per-company so toggling one row doesn't reset
+  // every other expanded row.
+  const [tableModeCompanyIds, setTableModeCompanyIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const setCompanyView = (companyId: string, mode: "chart" | "table") => {
+    setTableModeCompanyIds((prev) => {
+      const next = new Set(prev);
+      if (mode === "table") next.add(companyId);
+      else next.delete(companyId);
+      return next;
+    });
+  };
   const pageSize = 10;
 
   const contactsByOrgId = new Map<string | null, CampaignContact[]>();
@@ -498,31 +511,43 @@ export function CompaniesList({
                         </div>
                       ) : (
                         <>
-                          <div className="border-border flex items-center justify-end gap-1.5 border-t px-4 py-2">
-                            <span className="text-muted-foreground mr-1 text-xs">
-                              View:
-                            </span>
-                            <TogglePill
-                              active={viewMode === "chart"}
-                              onClick={() => setViewMode("chart")}
-                              disabled={!company.organization_id}
-                              title={
-                                company.organization_id
-                                  ? "Org chart"
-                                  : "Chart unavailable — company has no organization id"
-                              }
-                            >
-                              Org chart
-                            </TogglePill>
-                            <TogglePill
-                              active={viewMode === "table"}
-                              onClick={() => setViewMode("table")}
-                            >
-                              List
-                            </TogglePill>
-                          </div>
+                          {(() => {
+                            const tableMode = tableModeCompanyIds.has(
+                              company.id,
+                            );
+                            return (
+                              <div className="border-border flex items-center justify-end gap-1.5 border-t px-4 py-2">
+                                <span className="text-muted-foreground mr-1 text-xs">
+                                  View:
+                                </span>
+                                <TogglePill
+                                  active={!tableMode}
+                                  onClick={() =>
+                                    setCompanyView(company.id, "chart")
+                                  }
+                                  disabled={!company.organization_id}
+                                  title={
+                                    company.organization_id
+                                      ? "Org chart"
+                                      : "Chart unavailable — company has no organization id"
+                                  }
+                                >
+                                  Org chart
+                                </TogglePill>
+                                <TogglePill
+                                  active={tableMode}
+                                  onClick={() =>
+                                    setCompanyView(company.id, "table")
+                                  }
+                                >
+                                  List
+                                </TogglePill>
+                              </div>
+                            );
+                          })()}
 
-                          {viewMode === "chart" && company.organization_id ? (
+                          {!tableModeCompanyIds.has(company.id) &&
+                          company.organization_id ? (
                             <EmbeddedOrgChart
                               organizationId={company.organization_id}
                               campaignId={campaignId}

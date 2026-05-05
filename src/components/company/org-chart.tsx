@@ -251,7 +251,10 @@ interface OrgChartProps {
   onPersonClick?: (personId: string) => void;
   onPersonReclassify?: (
     personId: string,
-    next: { department: string; seniority: (typeof TIER_ORDER)[number] | null },
+    next: {
+      department: string | null;
+      seniority: (typeof TIER_ORDER)[number] | null;
+    },
   ) => void;
   onPersonRemove?: (personId: string) => void | Promise<void>;
   /** When false, renders to fill its parent (h-full) instead of h-[70vh]. */
@@ -311,21 +314,23 @@ export function OrgChart({
 
           const seniority =
             target.tier === UNCLASSIFIED_TIER ? null : target.tier;
+          // Map the synthetic Unclassified column back to a real `null` so
+          // we don't write the literal string "Unclassified" into the DB --
+          // classify-departments only revisits rows where department IS NULL.
+          const department =
+            target.department === UNCLASSIFIED_DEPT ? null : target.department;
           const person = people.find((p) => p.id === node.id);
           if (!person) return;
 
           // No-op if dropped in the same cell.
           if (
             (person.seniority ?? null) === seniority &&
-            deptFor(person.department) === target.department
+            (person.department ?? null) === department
           ) {
             return;
           }
 
-          onPersonReclassify(node.id, {
-            department: target.department,
-            seniority,
-          });
+          onPersonReclassify(node.id, { department, seniority });
         }}
         nodesDraggable
         nodesConnectable={false}

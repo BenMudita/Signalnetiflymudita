@@ -25,7 +25,23 @@ export async function POST(
   if (!ctx) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { supabase } = ctx;
+  const { supabase, user } = ctx;
+
+  // Ownership: target org must belong to one of the user's campaigns
+  // (same gate as classify-departments and /api/people/[id]/to-company).
+  const { data: orgOwnership } = await supabase
+    .from("campaign_organizations")
+    .select("campaign:campaigns!inner(user_id)")
+    .eq("organization_id", companyId)
+    .limit(1)
+    .maybeSingle();
+
+  const orgOwnerId =
+    (orgOwnership?.campaign as unknown as { user_id?: string } | null)
+      ?.user_id ?? null;
+  if (!orgOwnerId || orgOwnerId !== user.id) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data: org } = await supabase
     .from("organizations")

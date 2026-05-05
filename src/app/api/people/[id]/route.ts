@@ -2,10 +2,16 @@ import { z } from "zod";
 
 import { getSupabaseAndUser } from "@/lib/supabase/server";
 
+// All three fields accept `null` so dragging into Unclassified columns or
+// the Unclassified tier can clear them; `optional()` lets callers omit
+// fields they don't want to touch.
 const PatchSchema = z.object({
-  department: z.string().min(1).max(80).optional(),
-  seniority: z.enum(["founder", "head", "lead", "ic", "intern"]).optional(),
-  role_summary: z.string().max(400).optional(),
+  department: z.string().min(1).max(80).nullable().optional(),
+  seniority: z
+    .enum(["founder", "head", "lead", "ic", "intern"])
+    .nullable()
+    .optional(),
+  role_summary: z.string().max(400).nullable().optional(),
 });
 
 export async function PATCH(
