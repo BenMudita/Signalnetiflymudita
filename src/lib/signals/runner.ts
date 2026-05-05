@@ -6,7 +6,6 @@ import { withTimeout } from "@/lib/utils/timeout";
 import { structuralDiff } from "./diff";
 import { jsonSchemaToZod } from "./json-schema-to-zod";
 import { resolveArgs, resolvePath, renderTemplate } from "./paths";
-import { getRecipeTool } from "./tool-registry";
 
 const STAGEHAND_INIT_TIMEOUT_MS = 60_000;
 import type {
@@ -65,6 +64,13 @@ async function executeStep(
 ): Promise<unknown> {
   switch (step.kind) {
     case "tool": {
+      // Lazy-import to break the tools/index.ts <-> signal-tools.ts cycle:
+      // signal-tools imports runner; if runner statically imports
+      // tool-registry (which imports allTools from tools/index), Vitest's
+      // module-init order leaves some tool exports as `undefined` and
+      // crashes withTelemetry. The runtime call path is far past init, so
+      // a dynamic import here resolves cleanly.
+      const { getRecipeTool } = await import("./tool-registry");
       const tool = getRecipeTool(step.tool);
       const args = resolveArgs(step.args, scope);
       if (!tool.execute) {

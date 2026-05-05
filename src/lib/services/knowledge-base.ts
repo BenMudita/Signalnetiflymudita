@@ -18,11 +18,15 @@ function stripDiacritics(str: string): string {
  * of collapsing to `github.io` / `vercel.app`.
  */
 export function normalizeDomain(raw: string): string {
-  const cleaned = raw
+  let cleaned = raw
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
-    .replace(/\/+$/, "")
     .toLowerCase();
+  // Strip trailing slashes via a deterministic loop so CodeQL's polynomial-
+  // regex check doesn't flag this on user-controlled input.
+  let end = cleaned.length;
+  while (end > 0 && cleaned.charCodeAt(end - 1) === 47) end -= 1;
+  if (end !== cleaned.length) cleaned = cleaned.slice(0, end);
   return getDomain(cleaned, { allowPrivateDomains: true }) ?? cleaned;
 }
 
