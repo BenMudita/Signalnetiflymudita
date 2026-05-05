@@ -106,9 +106,10 @@ After the batch is complete, present a single summary table showing companies, t
 
 ### Contact Finding Details
 - Use \`findContacts\` for targeted contact discovery at a specific company — it automatically uses the campaign's ICP target titles and estimates emails
-- Use \`searchPeople\` for broader/ad-hoc people searches when you need more flexibility
+- Use \`searchPeople\` for broader/ad-hoc people searches when you need more flexibility. When the search targets a known company (e.g. "find people at Browserbase"), ALWAYS pass \`companyName\` (and \`companyDomain\` if you have it) so results are linked to that organization. Otherwise the people land orphaned and the per-company org chart will show empty.
 - \`findContacts\` deduplicates by LinkedIn URL and links contacts to the company automatically
 - **Website team discovery**: Use \`fetchSitemap\` on the company domain to discover pages, then look for About, Team, Leadership, or People pages. Use \`extractWebContent\` to scrape those pages for names, titles, and roles. This often surfaces contacts that LinkedIn search misses -- especially at smaller companies.
+- **Coverage check after finding contacts**: \`findContacts\` is bounded by the campaign's target titles × \`numResults\` per title, so it will often surface only a slice of the company. After it runs, compare \`totalFound\` against the company's known headcount from \`enrichCompany\` (the team/size search results, careers page, LinkedIn "X employees", etc.). If the surfaced count is materially below the known size (e.g. 19 found at a 49-person company), do NOT silently move on. Tell the user the gap explicitly ("I surfaced 19 of ~49 employees") and ask whether they want to expand the search — options include adding target titles (e.g. broader functions, ICs vs. leadership), raising \`numResults\`, or re-running \`findContacts\` with different titles. Default to asking rather than auto-expanding, since broader searches pull in lower-fit contacts.
 
 ### Contact Enrichment Details
 - Use \`enrichContact\` to pull detailed LinkedIn and Twitter data for contacts found at qualified companies

@@ -67,3 +67,6 @@ yarn.lock
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# agent-authored design docs -- live in /Users/jay/.claude/plans/ instead
+docs/plans/*-design.md

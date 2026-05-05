@@ -158,6 +158,8 @@ export interface Organization {
   updated_at: string;
 }
 
+export type Seniority = "founder" | "head" | "lead" | "ic" | "intern";
+
 export interface Person {
   id: string;
   name: string;
@@ -169,6 +171,10 @@ export interface Person {
   twitter_url: string | null;
   title: string | null;
   organization_id: string | null;
+  department: string | null;
+  seniority: Seniority | null;
+  role_summary: string | null;
+  bio_summary: string | null;
   enrichment_data: EnrichmentData;
   enrichment_status: "pending" | "in_progress" | "enriched" | "failed";
   last_enriched_at: string | null;
@@ -239,6 +245,10 @@ export interface CampaignContact {
   organization_id: string | null;
   name: string;
   title: string | null;
+  department: string | null;
+  seniority: Seniority | null;
+  role_summary: string | null;
+  bio_summary: string | null;
   work_email: string | null;
   personal_email: string | null;
   work_email_verified_at: string | null;

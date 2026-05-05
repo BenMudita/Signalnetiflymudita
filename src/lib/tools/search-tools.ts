@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject, tool } from "ai";
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import { createClient } from "@/lib/supabase/server";
 import { ExaService, type SearchCategory } from "@/lib/services/exa-service";
 import { WebExtractionService } from "@/lib/services/web-extraction-service";
@@ -73,7 +74,6 @@ const DIRECTORY_DOMAINS = new Set([
   "youtube.com",
   "pinterest.com",
   "wikipedia.org",
-  "en.wikipedia.org",
   "crunchbase.com",
   "bloomberg.com",
   "forbes.com",
@@ -117,6 +117,12 @@ function isDirectoryDomain(domain: string | null): boolean {
     if (DIRECTORY_DOMAINS.has(parent)) return true;
   }
   return false;
+}
+
+/** Derive a brand-ish label from an apex domain, e.g. `mintlify.com` → `Mintlify`. */
+function brandFromDomain(apex: string): string {
+  const sld = apex.split(".")[0] ?? "";
+  return sld ? sld.charAt(0).toUpperCase() + sld.slice(1) : "Unknown";
 }
 
 /** Check if a name looks like a directory listing, not a real business. */
@@ -228,14 +234,21 @@ export const searchCompanies = tool({
         seenDomains.add(domain);
       }
 
-      const name = result.title || domain || "Unknown";
+      // Prefer a brand label derived from the apex domain over Exa's raw page
+      // <title>, which is often messy ("Mintlify - The Intelligent Knowledge
+      // Platform", "Introduction - Mintlify"). Title falls back to identifying
+      // directory listings only.
+      const name = domain ? brandFromDomain(domain) : result.title || "Unknown";
 
-      // Skip results that look like directory listings by title
-      if (isDirectoryTitle(name)) {
+      if (isDirectoryTitle(result.title || name)) {
         directoriesFiltered++;
         continue;
       }
-      const description = result.summary || result.text?.slice(0, 500) || null;
+      const summary = result.summary || result.text?.slice(0, 500) || null;
+      const description =
+        result.title && summary && !summary.includes(result.title)
+          ? `${result.title} — ${summary}`
+          : summary || result.title || null;
 
       const org = await findOrCreateOrganization({
         name,
@@ -649,7 +662,7 @@ export const discoverCompanies = tool({
       .join("\n\n");
 
     const { object: extracted, usage } = await generateObject({
-      model: anthropic("claude-haiku-4-5-20251001"),
+      model: anthropic(MODELS.LIGHT),
       schema: z.object({
         companies: z.array(
           z.object({

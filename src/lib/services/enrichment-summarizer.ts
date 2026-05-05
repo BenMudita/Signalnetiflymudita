@@ -2,6 +2,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
 
+import { MODELS } from "@/lib/ai/models";
 import {
   estimateClaudeCostFromUsage,
   trackUsage,
@@ -12,7 +13,7 @@ import {
   wrapUntrusted,
 } from "@/lib/prompt-safety";
 
-const MODEL_ID = "claude-haiku-4-5-20251001";
+const MODEL_ID = MODELS.LIGHT;
 const MODEL_LABEL = "haiku";
 
 interface SearchResultLike {
@@ -71,6 +72,104 @@ ${wrapUntrusted(bodyText)}`,
     return object.summary.trim() || null;
   } catch (err) {
     console.error("[summarize-website] failed:", err);
+    return null;
+  }
+}
+
+interface PersonSummaryInput {
+  name: string;
+  title?: string | null;
+  companyName?: string | null;
+  linkedinHeadline?: string | null;
+  twitterBio?: string | null;
+  linkedinPosts?: Array<{ text: string }>;
+  tweets?: Array<{ text: string }>;
+  news?: SearchResultLike[];
+  articles?: SearchResultLike[];
+  background?: SearchResultLike[];
+}
+
+/**
+ * Generate a 2-3 sentence blurb describing who a person is and what they're
+ * up to, drawn from their enrichment data. Surfaced at the top of the person
+ * drawer so the user gets a quick read before scanning the raw signals.
+ * Returns null on failure / no usable signal.
+ */
+export async function summarizePerson(
+  input: PersonSummaryInput,
+): Promise<string | null> {
+  const sections: string[] = [];
+
+  if (input.title) sections.push(`Current title: ${input.title}`);
+  if (input.companyName) sections.push(`Company: ${input.companyName}`);
+  if (input.linkedinHeadline)
+    sections.push(`LinkedIn headline: ${input.linkedinHeadline}`);
+  if (input.twitterBio) sections.push(`Twitter bio: ${input.twitterBio}`);
+
+  const posts = (input.linkedinPosts ?? [])
+    .slice(0, 3)
+    .map((p) => p.text?.slice(0, 400))
+    .filter(Boolean)
+    .join("\n---\n");
+  if (posts) sections.push(`Recent LinkedIn posts:\n${posts}`);
+
+  const tweets = (input.tweets ?? [])
+    .slice(0, 3)
+    .map((t) => t.text?.slice(0, 280))
+    .filter(Boolean)
+    .join("\n---\n");
+  if (tweets) sections.push(`Recent tweets:\n${tweets}`);
+
+  const formatResults = (results?: SearchResultLike[]) =>
+    (results ?? [])
+      .slice(0, 3)
+      .map((r) => `${r.title}\n${r.text?.slice(0, 600) ?? ""}`)
+      .filter(Boolean)
+      .join("\n---\n");
+
+  const news = formatResults(input.news);
+  if (news) sections.push(`News mentions:\n${news}`);
+  const articles = formatResults(input.articles);
+  if (articles) sections.push(`Articles & talks:\n${articles}`);
+  const background = formatResults(input.background);
+  if (background) sections.push(`Background results:\n${background}`);
+
+  if (sections.length === 0) return null;
+
+  const body = sections.join("\n\n").slice(0, 8000);
+
+  try {
+    const { object, usage } = await generateObject({
+      model: anthropic(MODEL_ID),
+      schema: z.object({
+        summary: z
+          .string()
+          .describe(
+            "2-3 sentence overview of who the person is and what they've been up to recently. Plain prose, no markdown.",
+          ),
+      }),
+      prompt: `Summarize this person for a sales researcher who needs a quick read on who they are. Target: 2-3 sentences, plain prose, no markdown, no bullets. Cover their role and one or two notable threads from their background or recent activity. Skip generic platitudes ("results-driven leader") -- if the source material is thin, keep the summary short rather than padding it.
+
+${UNTRUSTED_NOTICE}
+
+Person: ${stringify(input.name)}
+
+Source material:
+${wrapUntrusted(body)}`,
+    });
+
+    trackUsage({
+      service: "claude",
+      operation: "summarize-person",
+      tokens_input: usage.inputTokens ?? 0,
+      tokens_output: usage.outputTokens ?? 0,
+      estimated_cost_usd: estimateClaudeCostFromUsage(MODEL_LABEL, usage),
+      metadata: { model: MODEL_LABEL, personName: input.name },
+    });
+
+    return object.summary.trim() || null;
+  } catch (err) {
+    console.error("[summarize-person] failed:", err);
     return null;
   }
 }

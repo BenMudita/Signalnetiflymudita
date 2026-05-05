@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import {
   estimateClaudeCostFromUsage,
   trackUsage,
@@ -51,7 +52,7 @@ export async function filterRelevantResults(
 
   try {
     const { object, usage } = await generateObject({
-      model: anthropic("claude-haiku-4-5-20251001"),
+      model: anthropic(MODELS.LIGHT),
       schema: z.object({
         relevant: z
           .array(z.number().int())

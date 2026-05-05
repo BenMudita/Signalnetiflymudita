@@ -164,9 +164,16 @@ export function ContactDetail({
 
   if (contact.enrichment_status === "in_progress") {
     return (
-      <div className="text-muted-foreground flex items-center justify-center gap-2 py-4 text-sm">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Enriching this contact...
+      <div className={containerClass}>
+        {contact.bio_summary && (
+          <p className="text-foreground/90 border-border/60 bg-muted/30 rounded-md border p-3 text-sm leading-relaxed">
+            {contact.bio_summary}
+          </p>
+        )}
+        <div className="text-muted-foreground flex items-center justify-center gap-2 py-4 text-sm">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Enriching this contact...
+        </div>
       </div>
     );
   }
@@ -232,6 +239,12 @@ export function ContactDetail({
 
   return (
     <div className={containerClass}>
+      {contact.bio_summary && (
+        <p className="text-foreground/90 border-border/60 bg-muted/30 rounded-md border p-3 text-sm leading-relaxed">
+          {contact.bio_summary}
+        </p>
+      )}
+
       <PriorityCallout
         score={contact.priority_score}
         reason={contact.score_reason}

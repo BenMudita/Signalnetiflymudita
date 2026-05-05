@@ -149,6 +149,10 @@ export default function CampaignDetailPage() {
           organization_id: (person?.organization_id as string) || null,
           name: person.name as string,
           title: person.title as string | null,
+          department: (person.department as string | null) ?? null,
+          seniority: (person.seniority as CampaignContact["seniority"]) ?? null,
+          role_summary: (person.role_summary as string | null) ?? null,
+          bio_summary: (person.bio_summary as string | null) ?? null,
           work_email: person.work_email as string | null,
           personal_email: person.personal_email as string | null,
           work_email_verified_at: person.work_email_verified_at as

@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import { WebExtractionService } from "@/lib/services/web-extraction-service";
 import {
   estimateClaudeCostFromUsage,
@@ -159,7 +160,7 @@ export async function findPeopleOnDomain(
 
   try {
     const { object, usage } = await generateObject({
-      model: anthropic("claude-haiku-4-5-20251001"),
+      model: anthropic(MODELS.LIGHT),
       schema: z.object({
         people: z.array(
           z.object({
@@ -289,7 +290,7 @@ export async function filterContactsByCompany(
 
   try {
     const { object, usage } = await generateObject({
-      model: anthropic("claude-haiku-4-5-20251001"),
+      model: anthropic(MODELS.LIGHT),
       schema: z.object({
         verified: z.array(
           z.object({

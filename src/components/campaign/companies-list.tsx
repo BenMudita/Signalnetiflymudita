@@ -14,6 +14,8 @@ import {
 
 import { CompanyDetail } from "@/components/campaign/company-detail";
 import { ContactDetail } from "@/components/campaign/contact-detail";
+import { EmbeddedOrgChart } from "@/components/company/embedded-org-chart";
+import { TogglePill } from "@/components/ui/toggle-pill";
 import { ReadinessBadge } from "@/components/tracking/readiness-badge";
 import { Button } from "@/components/ui/button";
 import { EditableEmail } from "@/components/ui/editable-email";
@@ -88,6 +90,20 @@ export function CompaniesList({
     Set<string>
   >(new Set());
   const [page, setPage] = useState(0);
+  // Companies in this set use the flat-table view; everyone else defaults
+  // to chart. Keeping this per-company so toggling one row doesn't reset
+  // every other expanded row.
+  const [tableModeCompanyIds, setTableModeCompanyIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const setCompanyView = (companyId: string, mode: "chart" | "table") => {
+    setTableModeCompanyIds((prev) => {
+      const next = new Set(prev);
+      if (mode === "table") next.add(companyId);
+      else next.delete(companyId);
+      return next;
+    });
+  };
   const pageSize = 10;
 
   const contactsByOrgId = new Map<string | null, CampaignContact[]>();
@@ -494,19 +510,67 @@ export function CompaniesList({
                           </Button>
                         </div>
                       ) : (
-                        <ContactsTable
-                          contacts={companyContacts}
-                          expandedContactIds={expandedContactIds}
-                          highlightedIds={highlightedIds}
-                          enrichingIds={enrichingIds}
-                          findingEmailIds={findingEmailIds}
-                          onToggle={toggleContact}
-                          onEnrich={enrichContact}
-                          onFindEmail={findEmailForContact}
-                          onEmailEdit={updateContactEmail}
-                          columnSpan={6}
-                          showOutreach
-                        />
+                        <>
+                          {(() => {
+                            const tableMode = tableModeCompanyIds.has(
+                              company.id,
+                            );
+                            return (
+                              <div className="border-border flex items-center justify-end gap-1.5 border-t px-4 py-2">
+                                <span className="text-muted-foreground mr-1 text-xs">
+                                  View:
+                                </span>
+                                <TogglePill
+                                  active={!tableMode}
+                                  onClick={() =>
+                                    setCompanyView(company.id, "chart")
+                                  }
+                                  disabled={!company.organization_id}
+                                  title={
+                                    company.organization_id
+                                      ? "Org chart"
+                                      : "Chart unavailable — company has no organization id"
+                                  }
+                                >
+                                  Org chart
+                                </TogglePill>
+                                <TogglePill
+                                  active={tableMode}
+                                  onClick={() =>
+                                    setCompanyView(company.id, "table")
+                                  }
+                                >
+                                  List
+                                </TogglePill>
+                              </div>
+                            );
+                          })()}
+
+                          {!tableModeCompanyIds.has(company.id) &&
+                          company.organization_id ? (
+                            <EmbeddedOrgChart
+                              organizationId={company.organization_id}
+                              campaignId={campaignId}
+                              contacts={companyContacts}
+                              onEnrich={enrichContact}
+                              onDataChanged={onDataChanged}
+                            />
+                          ) : (
+                            <ContactsTable
+                              contacts={companyContacts}
+                              expandedContactIds={expandedContactIds}
+                              highlightedIds={highlightedIds}
+                              enrichingIds={enrichingIds}
+                              findingEmailIds={findingEmailIds}
+                              onToggle={toggleContact}
+                              onEnrich={enrichContact}
+                              onFindEmail={findEmailForContact}
+                              onEmailEdit={updateContactEmail}
+                              columnSpan={6}
+                              showOutreach
+                            />
+                          )}
+                        </>
                       )}
                     </div>
                   )}

@@ -9,6 +9,7 @@ import {
   type ModelMessage,
 } from "ai";
 
+import { MODELS } from "@/lib/ai/models";
 import { getProfileForPrompt } from "@/lib/profile";
 import { getActiveSignals } from "@/lib/signals";
 import {
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
       const result = streamText({
-        model: anthropic("claude-sonnet-4-6"),
+        model: anthropic(MODELS.CHAT),
         system: systemPrompt,
         messages: modelMessages,
         tools: allTools,

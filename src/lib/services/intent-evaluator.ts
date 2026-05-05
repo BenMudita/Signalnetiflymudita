@@ -1,6 +1,7 @@
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
+import { MODELS } from "@/lib/ai/models";
 import {
   estimateClaudeCostFromUsage,
   trackUsage,
@@ -51,7 +52,7 @@ export async function evaluateIntent(
   }
 
   const { object, usage } = await generateObject({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: anthropic(MODELS.LIGHT),
     schema: verdictSchema,
     prompt: `You decide whether the observed change on a company warrants flagging them as "ready to contact" for outreach. You have the buyer's tracking intent (their own words) and a summary of what changed since the last snapshot.
 

@@ -6,6 +6,7 @@ import {
   buildEmailSystemPrompt,
   type ComposedEmail,
 } from "./skill";
+import { MODELS } from "@/lib/ai/models";
 import type { EmailSkill } from "@/lib/types/email-skill";
 
 type UserPromptInput = Parameters<typeof buildComposeUserPrompt>[0];
@@ -36,7 +37,7 @@ export async function composeEmail(
   try {
     const { skills, ...userPromptInput } = input;
     const { object } = await generateObject({
-      model: anthropic("claude-opus-4-6"),
+      model: anthropic(MODELS.EMAIL),
       schema: ComposedEmailSchema,
       system: buildEmailSystemPrompt(skills ?? []),
       prompt: buildComposeUserPrompt(userPromptInput),
