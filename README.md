@@ -86,6 +86,7 @@ pnpm dev             # http://localhost:3000
 ```
 
 Prefer to configure by hand? Follow [`docs/setup.md`](./docs/setup.md).
+Deploying for a team? See [`docs/netlify-deploy.md`](./docs/netlify-deploy.md).
 
 <br />
 
