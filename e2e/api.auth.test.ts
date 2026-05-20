@@ -113,8 +113,8 @@ test.describe("service-role client crosses user boundaries", () => {
   });
 });
 
-test.describe("handle_new_user trigger", () => {
-  test("creates a user_profile row on auth.users insert", async () => {
+test.describe("Clerk user provisioning", () => {
+  test("does not rely on a Supabase auth.users trigger", async () => {
     const user = await createTestUser();
 
     const { data: profile } = await supabase
@@ -123,9 +123,8 @@ test.describe("handle_new_user trigger", () => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    expect(profile).toBeTruthy();
-    expect(profile!.label).toBe("Default");
-    expect(profile!.user_id).toBe(user.id);
-    expect(profile!.email).toBe(user.email);
+    // Clerk users are external to Supabase Auth; profile rows are created
+    // lazily by app code when the user fills in a profile.
+    expect(profile).toBeNull();
   });
 });

@@ -9,12 +9,12 @@ import {
   cleanupTestUsers,
   createTestUser,
   setDefaultTestOwner,
-  authCookiesFor,
   TEST_PREFIX,
   type TestUser,
 } from "./helpers";
 
 let testUser: TestUser;
+const supabaseRestPattern = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/**`;
 
 test.beforeAll(async () => {
   testUser = await createTestUser();
@@ -22,7 +22,17 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async ({ context }) => {
-  await context.addCookies(authCookiesFor(testUser));
+  await context.setExtraHTTPHeaders({
+    authorization: `Bearer ${testUser.sessionToken}`,
+  });
+  await context.route(supabaseRestPattern, (route) => {
+    route.continue({
+      headers: {
+        ...route.request().headers(),
+        authorization: `Bearer ${testUser.accessToken}`,
+      },
+    });
+  });
 });
 
 test.afterAll(async () => {
@@ -78,8 +88,9 @@ test.describe("Settings page", () => {
     });
 
     await expect(page.locator("text=Campaigns").first()).toBeVisible();
-    await expect(page.locator("text=Cost Center").first()).toBeVisible();
-    await expect(page.locator("text=Danger Zone").first()).toBeVisible();
+    await expect(page.locator("text=Integrations").first()).toBeVisible();
+    await expect(page.locator("text=Preferences").first()).toBeVisible();
+    await expect(page.locator("text=Usage").first()).toBeVisible();
   });
 });
 

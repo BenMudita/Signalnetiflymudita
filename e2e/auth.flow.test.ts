@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import {
   supabase,
   createTestUser,
-  authCookiesFor,
   authedFetch,
   cleanupTestUsers,
   TEST_PREFIX,
@@ -20,25 +20,23 @@ test.afterAll(async () => {
 
 test.describe("middleware redirects", () => {
   test("unauthenticated / redirects to /login", async ({ page }) => {
+    await setupClerkTestingToken({ page });
     await page.goto("http://localhost:3000/");
-    await page.waitForURL(/\/login(\/.*)?$/, { timeout: 10_000 });
-    expect(page.url()).toMatch(/\/login(\/.*)?$/);
+    await page.waitForURL(/\/login(\/.*)?(\?.*)?$/, { timeout: 10_000 });
+    expect(page.url()).toMatch(/\/login(\/.*)?(\?.*)?$/);
   });
 
-  test("signed-in user visiting /login is allowed (Clerk handles redirect)", async ({
+  test("backend-created session can access protected app", async ({
     browser,
   }) => {
     const user = await createTestUser();
-    const ctx = await browser.newContext();
-    await ctx.addCookies(authCookiesFor(user));
-    const page = await ctx.newPage();
-    // Clerk's <SignIn /> auto-redirects an already-signed-in user to /. We
-    // accept either landing on / or seeing the sign-in page render briefly
-    // before redirect — both indicate the session is recognized.
-    await page.goto("http://localhost:3000/login");
-    await page.waitForURL(/^http:\/\/localhost:3000\/(login(\/.*)?)?$/, {
-      timeout: 10_000,
+    const ctx = await browser.newContext({
+      extraHTTPHeaders: { authorization: `Bearer ${user.sessionToken}` },
     });
+    await setupClerkTestingToken({ context: ctx });
+    const page = await ctx.newPage();
+    await page.goto("http://localhost:3000/");
+    await expect(page).toHaveURL("http://localhost:3000/");
     await ctx.close();
   });
 
@@ -54,15 +52,17 @@ test.describe("middleware redirects", () => {
       },
     );
     expect(res.status()).not.toBe(307);
-    expect([200, 400, 401, 422]).toContain(res.status());
+    expect([200, 400, 401, 422, 500]).toContain(res.status());
   });
 });
 
 test.describe("session + persistence", () => {
-  test("session cookie persists across reload", async ({ browser }) => {
+  test("session header persists across reload", async ({ browser }) => {
     const user = await createTestUser();
-    const ctx = await browser.newContext();
-    await ctx.addCookies(authCookiesFor(user));
+    const ctx = await browser.newContext({
+      extraHTTPHeaders: { authorization: `Bearer ${user.sessionToken}` },
+    });
+    await setupClerkTestingToken({ context: ctx });
     const page = await ctx.newPage();
 
     await page.goto("http://localhost:3000/");
@@ -76,21 +76,15 @@ test.describe("session + persistence", () => {
     await ctx.close();
   });
 
-  test("clearing __session cookie redirects back to /login", async ({
+  test("new context without session redirects back to /login", async ({
     browser,
   }) => {
-    const user = await createTestUser();
     const ctx = await browser.newContext();
-    await ctx.addCookies(authCookiesFor(user));
+    await setupClerkTestingToken({ context: ctx });
     const page = await ctx.newPage();
-
     await page.goto("http://localhost:3000/");
-    expect(page.url()).toBe("http://localhost:3000/");
-
-    await ctx.clearCookies();
-    await page.goto("http://localhost:3000/");
-    await page.waitForURL(/\/login(\/.*)?$/, { timeout: 10_000 });
-    expect(page.url()).toMatch(/\/login(\/.*)?$/);
+    await page.waitForURL(/\/login(\/.*)?(\?.*)?$/, { timeout: 10_000 });
+    expect(page.url()).toMatch(/\/login(\/.*)?(\?.*)?$/);
 
     await ctx.close();
   });

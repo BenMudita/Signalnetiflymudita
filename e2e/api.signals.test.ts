@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import {
   supabase,
   TEST_PREFIX,
-  authCookiesFor,
   createTestCampaign,
   cleanupTestData,
   cleanupTestUsers,
@@ -12,6 +12,7 @@ import {
 } from "./helpers";
 
 let testUser: TestUser;
+const supabaseRestPattern = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/**`;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,7 +59,18 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async ({ context }) => {
-  await context.addCookies(authCookiesFor(testUser));
+  await context.setExtraHTTPHeaders({
+    authorization: `Bearer ${testUser.sessionToken}`,
+  });
+  await context.route(supabaseRestPattern, (route) => {
+    route.continue({
+      headers: {
+        ...route.request().headers(),
+        authorization: `Bearer ${testUser.accessToken}`,
+      },
+    });
+  });
+  await setupClerkTestingToken({ context });
 });
 
 test.afterAll(async () => {
@@ -541,8 +553,12 @@ test.describe("Signal results", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Signals page", () => {
-  test("loads and displays built-in signals", async ({ page }) => {
+  async function openSignals(page: Page) {
     await page.goto("/signals");
+  }
+
+  test("loads and displays built-in signals", async ({ page }) => {
+    await openSignals(page);
     await page.waitForSelector("text=Hiring Activity", { timeout: 10000 });
 
     const text = await page.textContent("body");
@@ -552,7 +568,7 @@ test.describe("Signals page", () => {
   });
 
   test("category filter works", async ({ page }) => {
-    await page.goto("/signals");
+    await openSignals(page);
     await page.waitForSelector("text=Hiring Activity", { timeout: 10000 });
 
     // Click hiring category filter
@@ -564,7 +580,7 @@ test.describe("Signals page", () => {
   });
 
   test("signal card shows built-in badge", async ({ page }) => {
-    await page.goto("/signals");
+    await openSignals(page);
     await page.waitForSelector("text=Hiring Activity", { timeout: 10000 });
     const text = await page.textContent("body");
     expect(text).toContain("Built-in");

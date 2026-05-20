@@ -7,7 +7,9 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
 interface ClerkWindow {
   Clerk?: {
-    session?: { getToken: () => Promise<string | null> };
+    session?: {
+      getToken: (options?: { template?: string }) => Promise<string | null>;
+    };
   };
 }
 
@@ -28,7 +30,7 @@ export const createClient = () =>
           typeof window !== "undefined"
             ? await ((
                 window as unknown as ClerkWindow
-              ).Clerk?.session?.getToken() ?? null)
+              ).Clerk?.session?.getToken({ template: "supabase" }) ?? null)
             : null;
         const headers = new Headers(init.headers);
         if (token) headers.set("Authorization", `Bearer ${token}`);

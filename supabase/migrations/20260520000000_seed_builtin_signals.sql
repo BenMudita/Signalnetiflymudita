@@ -1,0 +1,173 @@
+-- Ensure production databases always have the built-in signal catalog.
+-- Some existing projects were linked after the initial squashed migration and
+-- ended up with the schema but no signal rows. Keep this idempotent so it can
+-- safely repair those projects and future resets.
+
+insert into signals (
+  name,
+  slug,
+  description,
+  long_description,
+  category,
+  icon,
+  execution_type,
+  tool_key,
+  config,
+  is_builtin,
+  is_public
+) values
+(
+  'Hiring Activity',
+  'hiring-activity',
+  'Scrape careers pages to detect hiring patterns as buying signals.',
+  'Navigates to a company''s website, finds their careers or jobs page, and extracts structured job listings. Hiring volume, department focus, and role seniority can indicate budget and urgency.',
+  'hiring',
+  'Briefcase',
+  'browser_script',
+  'scrapeJobListings',
+  '{"maxJobs": 20}'::jsonb,
+  true,
+  true
+),
+(
+  'Funding & News',
+  'funding-news',
+  'Search for recent funding rounds, acquisitions, and company news.',
+  'Uses semantic search to find recent funding announcements, acquisitions, partnerships, and press coverage. Recent funding often means budget for new tools and services.',
+  'funding',
+  'TrendingUp',
+  'exa_search',
+  null,
+  '{"query": "{company} funding round OR acquisition OR raised series", "category": "news"}'::jsonb,
+  true,
+  true
+),
+(
+  'Executive Changes',
+  'executive-changes',
+  'Detect new hires, promotions, and leadership changes at target companies.',
+  'Searches for recent executive appointments, promotions, and leadership changes. New leaders in relevant roles often bring new budgets and initiatives.',
+  'executive',
+  'UserCog',
+  'exa_search',
+  null,
+  '{"query": "new {title} appointed OR hired OR promoted at {company}", "category": "news"}'::jsonb,
+  true,
+  true
+),
+(
+  'Product Launches',
+  'product-launches',
+  'Monitor for new product announcements and feature releases.',
+  'Tracks new product launches, major feature releases, and expansion announcements. Companies launching new products are often investing in supporting infrastructure, tooling, and services.',
+  'product',
+  'Rocket',
+  'exa_search',
+  null,
+  '{"query": "{company} launches OR announces OR releases new product OR feature", "category": "news"}'::jsonb,
+  true,
+  true
+),
+(
+  'Social Engagement',
+  'social-engagement',
+  'Analyze LinkedIn and Twitter activity for engagement signals.',
+  'Reviews recent social media activity from key contacts. Active posters with relevant content are often more receptive to timely outreach.',
+  'engagement',
+  'MessageCircle',
+  'tool_call',
+  'enrichContact',
+  '{"focus": "social_activity"}'::jsonb,
+  true,
+  true
+),
+(
+  'Website & Tech Stack',
+  'website-tech-stack',
+  'Analyze company websites for technology signals and content.',
+  'Extracts and analyzes company website content, technology indicators, and messaging to identify stack, positioning, stage, and potential pain points.',
+  'product',
+  'Globe',
+  'tool_call',
+  'extractWebContent',
+  '{"includeStructuredData": true}'::jsonb,
+  true,
+  true
+),
+(
+  'GitHub Stargazers',
+  'github-stargazers',
+  'Fetch stargazers from a company''s GitHub repos.',
+  'Uses the GitHub API to fetch people who recently starred a company''s repositories, helping find developers and technical decision-makers.',
+  'engagement',
+  'Star',
+  'tool_call',
+  'fetchGitHubStargazers',
+  '{"maxStargazers": 10}'::jsonb,
+  true,
+  true
+),
+(
+  'Google Reviews',
+  'google-reviews',
+  'Fetch Google ratings and reviews to gauge customer sentiment and reputation.',
+  'Uses the Google Places API to find a company''s Google Business listing and extract rating, review count, and recent review text.',
+  'engagement',
+  'StarHalf',
+  'tool_call',
+  'getGoogleReviews',
+  '{"maxReviews": 5}'::jsonb,
+  true,
+  true
+),
+(
+  'Pricing Changes',
+  'pricing-changes',
+  'Track competitor and prospect pricing page changes over time.',
+  'Scrapes pricing pages, extracts tiers and pricing details, and compares them with prior snapshots to surface material changes.',
+  'product',
+  'TrendingUp',
+  'browser_script',
+  null,
+  '{}'::jsonb,
+  true,
+  true
+),
+(
+  'Changelog Monitor',
+  'changelog-monitor',
+  'Watch for new releases, changelogs, and product updates.',
+  'Uses semantic search to find recent changelog entries, release notes, and product update posts. Active shipping cadence is a useful outreach signal.',
+  'product',
+  'Rocket',
+  'exa_search',
+  null,
+  '{"query": "{company} changelog OR release notes OR what''s new", "category": "news"}'::jsonb,
+  true,
+  true
+),
+(
+  'Terms & Conditions Changes',
+  'terms-conditions-changes',
+  'Detect updates to a company''s terms of service or privacy policy.',
+  'Navigates to terms, conditions, or privacy policy pages and extracts key terms, effective dates, and material changes.',
+  'custom',
+  'Globe',
+  'browser_script',
+  'extractWebContent',
+  '{"instructions": "Navigate to the terms and conditions or privacy policy page and extract key terms, dates, and changes."}'::jsonb,
+  true,
+  true
+)
+on conflict (slug) do update set
+  name = excluded.name,
+  description = excluded.description,
+  long_description = excluded.long_description,
+  category = excluded.category,
+  icon = excluded.icon,
+  execution_type = excluded.execution_type,
+  tool_key = excluded.tool_key,
+  config = excluded.config,
+  is_builtin = true,
+  is_public = true,
+  updated_at = now();

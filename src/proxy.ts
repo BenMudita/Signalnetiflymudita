@@ -15,7 +15,11 @@ const hasClerkConfig = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 export const proxy = hasClerkConfig
   ? clerkMiddleware(async (auth, request) => {
-      if (!isPublicRoute(request)) await auth.protect();
+      if (!isPublicRoute(request)) {
+        await auth.protect({
+          unauthenticatedUrl: new URL("/login", request.url).toString(),
+        });
+      }
     })
   : () => NextResponse.next();
 

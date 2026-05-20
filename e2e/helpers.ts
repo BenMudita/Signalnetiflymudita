@@ -66,6 +66,7 @@ export interface TestUser {
   id: string;
   email: string;
   password: string;
+  sessionToken: string;
   accessToken: string;
   refreshToken: string;
   /** Raw Clerk session object — used for authCookiesFor. */
@@ -88,14 +89,24 @@ export async function createTestUser(email?: string): Promise<TestUser> {
     publicMetadata: { e2e_test: true },
   });
 
+  const primaryEmail = user.emailAddresses[0];
+  if (primaryEmail) {
+    await clerk.emailAddresses.updateEmailAddress(primaryEmail.id, {
+      verified: true,
+      primary: true,
+    });
+  }
+
   const session = await clerk.sessions.createSession({ userId: user.id });
-  const token = await clerk.sessions.getToken(session.id);
+  const sessionToken = await clerk.sessions.getToken(session.id);
+  const supabaseToken = await clerk.sessions.getToken(session.id, "supabase");
 
   return {
     id: user.id,
     email: targetEmail,
     password: TEST_PASSWORD,
-    accessToken: token.jwt,
+    sessionToken: sessionToken.jwt,
+    accessToken: supabaseToken.jwt,
     refreshToken: "",
     session,
   };
@@ -110,7 +121,7 @@ export function authCookiesFor(user: TestUser) {
   return [
     {
       name: "__session",
-      value: user.accessToken,
+      value: user.sessionToken,
       url: "http://localhost:3000",
       httpOnly: true,
       secure: false,
@@ -125,7 +136,7 @@ export function authCookiesFor(user: TestUser) {
  * hit authenticated Next.js routes.
  */
 export function authCookieHeader(user: TestUser): string {
-  return `__session=${user.accessToken}`;
+  return `__session=${user.sessionToken}`;
 }
 
 /** Fetch an app route as a given test user. */
@@ -135,7 +146,7 @@ export function authedFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${user.accessToken}`);
+  headers.set("authorization", `Bearer ${user.sessionToken}`);
   headers.set("cookie", authCookieHeader(user));
   if (init.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");

@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const clerkSupabaseTemplate =
+  process.env.CLERK_SUPABASE_JWT_TEMPLATE || "supabase";
 
 let warnedKeyless = false;
 function warnIfKeyless() {
@@ -40,7 +42,7 @@ export const createClient = async () => {
     cookies: { getAll: () => [], setAll: () => {} },
     global: {
       fetch: async (input, init = {}) => {
-        const token = await getToken();
+        const token = await getToken({ template: clerkSupabaseTemplate });
         const headers = new Headers(init.headers);
         if (token) headers.set("Authorization", `Bearer ${token}`);
         return fetch(input, { ...init, headers });
