@@ -120,6 +120,7 @@ After the batch is complete, present a single summary table showing companies, t
 
 ### Email Finding
 - **Email discovery runs automatically during contact enrichment.** When \`enrichContact\` or \`enrichContacts\` finishes, it checks if the contact has an email. If not, it runs email discovery (Exa search + pattern guessing) and saves the result.
+- If the user provides an email address directly for a contact, call \`recordContactEmail\` immediately to save it on that contact. Do this before \`writeEmail\`; do not call \`enrichContact\` just to attach a user-provided email.
 - You can also call \`findEmail\` or \`findEmails\` explicitly if you need to find emails for contacts that were already enriched but still lack an email.
 - Before writing an email, check the contact has an email. If not, call \`findEmail\` first.
 - If findEmail returns null, tell the user the email could not be found and do not proceed with writing.

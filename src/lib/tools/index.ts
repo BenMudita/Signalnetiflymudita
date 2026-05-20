@@ -59,6 +59,7 @@ import {
 import {
   findEmail,
   findEmails,
+  recordContactEmail,
   writeEmail,
   sendEmail,
   sendBulkEmails,
@@ -132,6 +133,7 @@ const rawTools = {
   updateTracking,
   findEmail,
   findEmails,
+  recordContactEmail,
   writeEmail,
   sendEmail,
   sendBulkEmails,

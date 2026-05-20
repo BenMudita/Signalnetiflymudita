@@ -308,6 +308,54 @@ export const findEmails = tool({
   },
 });
 
+// ── recordContactEmail ────────────────────────────────────────────────────
+
+export const recordContactEmail = tool({
+  description:
+    "Save an email address the user provided directly for a contact. Use this before writeEmail when the user gives you the recipient's email in chat.",
+  inputSchema: z.object({
+    personId: z.string().uuid().describe("Person ID to attach the email to."),
+    email: z.string().email().describe("Email address provided by the user."),
+  }),
+  execute: async ({ personId, email }) => {
+    const ctx = await getSupabaseAndUser();
+    if (!ctx) {
+      return {
+        error:
+          "No authenticated session available in tool context. Ask the user to sign in.",
+      };
+    }
+    const { supabase, user } = ctx;
+
+    const { data: ownership } = await supabase
+      .from("campaign_people")
+      .select("campaign:campaigns!inner(user_id)")
+      .eq("person_id", personId)
+      .limit(1)
+      .maybeSingle();
+
+    const ownerId =
+      (ownership?.campaign as unknown as { user_id?: string } | null)
+        ?.user_id ?? null;
+    if (!ownerId || ownerId !== user.id) {
+      return { error: "You do not have access to update this contact." };
+    }
+
+    await recordVerifiedEmail(supabase, {
+      personId,
+      email,
+      source: "user_entered",
+    });
+
+    return {
+      personId,
+      email,
+      source: "user_entered",
+      message: "Email saved on the contact.",
+    };
+  },
+});
+
 // ── writeEmail ─────────────────────────────────────────────────────────────
 
 export const writeEmail = tool({
