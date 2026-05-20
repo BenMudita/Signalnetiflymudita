@@ -6,7 +6,7 @@ import { shadcn } from "@clerk/ui/themes";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DashboardShell } from "@/components/dashboard-shell";
+import { AppChrome } from "@/components/app-chrome";
 import { MissingKeyBannerStack } from "@/components/missing-key-banner-stack";
 import { PostHogIdentify } from "@/components/posthog-identify";
 import { StreamingProvider } from "@/lib/streaming-context";
@@ -85,9 +85,9 @@ export default function RootLayout({
             >
               <StreamingProvider>
                 <TooltipProvider>
-                  <DashboardShell banner={<MissingKeyBannerStack />}>
+                  <AppChrome banner={<MissingKeyBannerStack />}>
                     {children}
-                  </DashboardShell>
+                  </AppChrome>
                   <Toaster richColors />
                 </TooltipProvider>
               </StreamingProvider>
