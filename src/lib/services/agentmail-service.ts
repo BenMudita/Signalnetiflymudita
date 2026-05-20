@@ -28,15 +28,41 @@ export async function createInbox(displayName: string) {
 
 export async function sendMessage(
   inboxId: string,
-  params: { to: string; subject: string; text?: string; html?: string },
+  params: {
+    to: string;
+    subject: string;
+    text?: string;
+    html?: string;
+    replyTo?: string | null;
+  },
 ) {
   const c = getClient();
+  const text = params.text ?? htmlToText(params.html);
   return c.inboxes.messages.send(inboxId, {
     to: params.to,
     subject: params.subject,
-    text: params.text,
+    text,
     html: params.html,
+    replyTo: params.replyTo || undefined,
   });
+}
+
+function htmlToText(html: string | undefined): string | undefined {
+  if (!html) return undefined;
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function getMessage(inboxId: string, messageId: string) {

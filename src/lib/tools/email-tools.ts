@@ -471,6 +471,7 @@ export const sendEmail = tool({
         subject: draft.subject,
         html: draft.body_html,
         text: draft.body_text ?? undefined,
+        replyTo: settings.reply_to_email,
       });
       messageId = result.messageId ?? crypto.randomUUID();
       threadId = result.threadId ?? null;
@@ -618,7 +619,7 @@ export const sendBulkEmails = tool({
 
     const { data: settings } = await supabase
       .from("user_settings")
-      .select("agentmail_inbox_id")
+      .select("agentmail_inbox_id, reply_to_email")
       .single();
 
     if (!settings?.agentmail_inbox_id) {
@@ -637,6 +638,7 @@ export const sendBulkEmails = tool({
           subject: draft.subject,
           html: draft.body_html,
           text: draft.body_text ?? undefined,
+          replyTo: settings.reply_to_email,
         });
 
         const messageId = result.messageId ?? crypto.randomUUID();

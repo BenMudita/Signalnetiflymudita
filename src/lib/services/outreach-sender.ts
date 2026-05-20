@@ -55,7 +55,7 @@ export async function sendApprovedDraft(
 
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("agentmail_inbox_id")
+    .select("agentmail_inbox_id, reply_to_email")
     .eq("user_id", draft.user_id)
     .single();
 
@@ -69,6 +69,7 @@ export async function sendApprovedDraft(
       subject: draft.subject,
       html: draft.body_html,
       text: draft.body_text ?? undefined,
+      replyTo: settings.reply_to_email,
     });
 
     const messageId = result.messageId ?? crypto.randomUUID();
