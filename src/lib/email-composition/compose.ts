@@ -25,11 +25,8 @@ export type ComposeResult =
  * campaign, skills-set) so parallel fan-out hits prompt cache on all but the
  * first call.
  *
- * Model: Opus 4.6 — chosen for its ability to balance the base cold-email
- * rules against multiple user-authored skills that can layer or conflict.
- * Haiku 4.5 tends to drop rules when too many are stacked; Opus holds them.
- * Cost/latency are cushioned by the ephemeral prompt cache and bounded
- * concurrency in the fan-out.
+ * Model: Sonnet 4.6 — strong enough for the current cold-email rules while
+ * keeping sequence fan-out responsive inside serverless request limits.
  */
 export async function composeEmail(
   input: ComposeInput,
@@ -37,7 +34,7 @@ export async function composeEmail(
   try {
     const { skills, ...userPromptInput } = input;
     const { object } = await generateObject({
-      model: anthropic(MODELS.EMAIL),
+      model: anthropic(MODELS.CHAT),
       schema: ComposedEmailSchema,
       system: buildEmailSystemPrompt(skills ?? []),
       prompt: buildComposeUserPrompt(userPromptInput),
